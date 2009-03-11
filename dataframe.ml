@@ -1,4 +1,5 @@
 open Printf
+let leprintf format = eprintf (format ^^ "%!")
 
 type track = {
   person: int;
@@ -11,16 +12,14 @@ type track = {
 let save dataframe filename =
   let ob = open_out_bin filename in
   Marshal.to_channel ob dataframe [];
-  eprintf "saved dataframe with %d rows to file %s\n" (Array.length dataframe) filename;
-  flush stderr;
+  leprintf "saved dataframe with %d rows to file %s\n" (Array.length dataframe) filename;
   close_out ob
   
 let load filename =
   let ib = open_in_bin filename in
   let (matrix: track array) = Marshal.from_channel ib in
   close_in ib;
-  eprintf "loaded dataframe with %d rows from file %s\n" (Array.length matrix) filename;
-  flush stderr;
+  leprintf "loaded dataframe with %d rows from file %s\n" (Array.length matrix) filename;
   matrix
 
 let compare_person_time_cell a b =
