@@ -66,6 +66,7 @@ let df_edges a =
 let graph_of_df ?(progress=0) a =
   let g = G.create () in
   let vertex_count = ref 0 in
+  let link_count = ref 0 in (* new transiitons *)
   let edge_count = ref 0 in
   let step (prev_person, prev_vertex) row =
     let person = row.D.person in
@@ -82,10 +83,22 @@ let graph_of_df ?(progress=0) a =
         v
       in
     if person = prev_person then begin
-        G.add_edge g prev_vertex v;
-        edge_count := !edge_count + 1;
-        if progress > 0 && !edge_count mod progress = 0 
-        then leprintf "." else ();
+      let transitions =
+        try
+          let e = G.find_edge g prev_vertex v in
+          let label = G.E.label e in
+          G.remove_edge_e g e;
+          label
+        with Not_found -> 
+          link_count := !link_count + 1;
+          if progress > 0 && !link_count mod progress = 0 
+          then leprintf ":" else ();
+          0 in
+      let e = G.E.create prev_vertex (transitions+1) v in
+      G.add_edge_e g e;        
+      edge_count := !edge_count + 1;
+      if progress > 0 && !edge_count mod progress = 0 
+      then leprintf "." else ();
       end
     else
       if progress > 0 then leprintf "%d" person else ();
@@ -94,8 +107,21 @@ let graph_of_df ?(progress=0) a =
   (* NB we really need an empty vertex V.empty *)
   let v0 = G.V.create a.(0).D.cell in
   let _,_ = Array.fold_left step (-1,v0) a in
+  if progress > 0 then 
+  printf "new graph totals: %d vertices, %d first edges (links), %d all edges\n"
+    !vertex_count !link_count !edge_count
+  else ();
   g
   
+  
+let total_weights g =
+  let w = ref 0 in
+  let add_weight e =
+    let ew = G.E.label e in
+    w := !w + ew
+  in
+  G.iter_edges_e add_weight g;
+  !w
   
 let save_graph g filename =
   let ob = open_out_bin filename in
@@ -155,13 +181,12 @@ let () =
   else
     leprintf "using dataframe as-is, however sorted\n";
 
-  let  person_starts = find_person_starts df in
+  (* let  person_starts = find_person_starts df in
   printf "[%s]\n" (String.concat "; " (List.map (fun e -> string_of_int e) person_starts));
   
   let segments = person_segments person_starts in
-  show_segments segments;
+  show_segments segments; *)
   
   let progress = 1000 in
   let g = graph_of_df ~progress df in
-  save_graph g graph_filename
-  
+  save_graph g graph_filename  
