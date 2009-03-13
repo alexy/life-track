@@ -63,6 +63,33 @@ let df_edges a =
   Array.fold_left step (-1,-1,[]) a
   
 
+let df_edges_txt ?(progress=0) a filename =
+  let oc = open_out filename in
+  let link_count = ref 0 in
+  let once = Hashtbl.create 1000 in
+  let step (prev_person, prev_cell) row =
+    let person = row.D.person in
+    let cell = row.D.cell in
+    if person = prev_person then
+      let edge = (prev_cell, cell) in
+        try
+          let n = Hashtbl.find once edge in
+          Hashtbl.replace once edge (n+1)
+        with Not_found -> begin
+          fprintf oc "%d %d\n" prev_cell cell;
+          Hashtbl.add once edge 1;
+          link_count := !link_count + 1;
+          if progress > 0 && !link_count mod progress = 0 then
+            leprintf "."
+          else ()
+        end  
+    else ();
+    (person, cell)
+  in
+  let _ = Array.fold_left step (-1,-1) a in
+  close_out oc
+  
+
 let graph_of_df ?(progress=0) a =
   let g = G.create () in
   let vertex_count = ref 0 in
@@ -106,7 +133,7 @@ let graph_of_df ?(progress=0) a =
   in
   (* NB we really need an empty vertex V.empty *)
   let v0 = G.V.create a.(0).D.cell in
-  let _,_ = Array.fold_left step (-1,v0) a in
+  let _ = Array.fold_left step (-1,v0) a in
   if progress > 0 then 
   printf "new graph totals: %d vertices, %d first edges (links), %d all edges\n"
     !vertex_count !link_count !edge_count
@@ -147,10 +174,13 @@ let load_graph filename =
 let () =
   let sort_by_person_ = ref false in
   let graph_filename_ = ref "" in
+  let text_out_ = ref false in
   let rest_ = ref [] in
   Arg.parse
       ["-sp", Arg.Unit (fun () ->  sort_by_person_ := not !sort_by_person_), 
        " <bool>  whether to sort the dataframe by person";
+       "-txt", Arg.Unit (fun () -> text_out_ := not !text_out_),
+       " <bool> whether to produce etxt output instead of the ocaml marshalled object";
        "-g", Arg.String (fun s -> graph_filename_ := s),
        " <string> filename to marshal the graph into"
       ]
@@ -159,6 +189,7 @@ let () =
     
   let sort_by_person = !sort_by_person_ in
   let graph_filename = !graph_filename_ in
+  let text_out = !text_out_ in
   let rest = !rest_ in
     
   let df_filename =  
@@ -188,5 +219,11 @@ let () =
   show_segments segments; *)
   
   let progress = 1000 in
-  let g = graph_of_df ~progress df in
-  save_graph g graph_filename  
+  if text_out then begin
+    leprintf "writing text\n";
+    df_edges_txt ~progress df graph_filename end
+  else begin
+    leprintf "writing binary\n";
+    let g = graph_of_df ~progress df in
+    save_graph g graph_filename
+  end
