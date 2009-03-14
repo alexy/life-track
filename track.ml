@@ -65,13 +65,17 @@ let df_edges a =
 
 let df_edges_txt ?(progress=0) a filename =
   let oc = open_out filename in
+  fprintf oc "PIG:0\nGraph_A\n";
   let link_count = ref 0 in
   let once = Hashtbl.create 1000 in
   let step (prev_person, prev_cell) row =
     let person = row.D.person in
     let cell = row.D.cell in
     if person = prev_person then
-      let edge = (prev_cell, cell) in
+      let a = prev_cell in
+      let b = cell in
+      let a,b = min a b, max a b in
+      let edge = a,b in
         try
           let n = Hashtbl.find once edge in
           Hashtbl.replace once edge (n+1)
@@ -87,6 +91,7 @@ let df_edges_txt ?(progress=0) a filename =
     (person, cell)
   in
   let _ = Array.fold_left step (-1,-1) a in
+  fprintf oc "0 0\n";
   close_out oc
   
 
